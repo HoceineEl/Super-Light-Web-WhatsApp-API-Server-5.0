@@ -94,7 +94,7 @@ The application now includes a comprehensive multi-user system with role-based a
     -   Can view and manage all sessions
     -   Can monitor all user activities
     -   Can delete system logs
-    
+
 -   **User**: Limited access
     -   Can only view and manage their own sessions
     -   Cannot delete system logs
@@ -145,7 +145,7 @@ Admins can view all activities at `/admin/activities.html`
     ```bash
     npm install
     ```
-    
+
     **For cPanel or environments without Python:**
     ```bash
     npm run install:smart
@@ -184,7 +184,7 @@ For detailed instructions on deploying to cPanel hosting:
 Key requirements for cPanel:
 - Node.js 14+ support
 - At least 1GB RAM
-- Set `MAX_SESSIONS=5` for optimal performance
+- Default `MAX_SESSIONS=25` (can be adjusted based on server resources)
 
 ### Other Deployment Options
 

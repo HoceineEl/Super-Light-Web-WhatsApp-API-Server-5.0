@@ -72,26 +72,26 @@ function encrypt(text) {
     const algorithm = 'aes-256-cbc';
     const key = Buffer.from(ENCRYPTION_KEY.slice(0, 64), 'hex');
     const iv = crypto.randomBytes(16);
-    
+
     const cipher = crypto.createCipheriv(algorithm, key, iv);
     let encrypted = cipher.update(text, 'utf8', 'hex');
     encrypted += cipher.final('hex');
-    
+
     return iv.toString('hex') + ':' + encrypted;
 }
 
 function decrypt(text) {
     const algorithm = 'aes-256-cbc';
     const key = Buffer.from(ENCRYPTION_KEY.slice(0, 64), 'hex');
-    
+
     const parts = text.split(':');
     const iv = Buffer.from(parts[0], 'hex');
     const encryptedText = parts[1];
-    
+
     const decipher = crypto.createDecipheriv(algorithm, key, iv);
     let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
     decrypted += decipher.final('utf8');
-    
+
     return decrypted;
 }
 
@@ -101,14 +101,14 @@ function saveTokens() {
         const tokensToSave = Object.fromEntries(sessionTokens);
         const jsonString = JSON.stringify(tokensToSave, null, 2);
         const encrypted = encrypt(jsonString);
-        
+
         fs.writeFileSync(ENCRYPTED_TOKENS_FILE, encrypted, 'utf-8');
-        
+
         // Set file permissions (read/write for owner only)
         if (process.platform !== 'win32') {
             fs.chmodSync(ENCRYPTED_TOKENS_FILE, 0o600);
         }
-        
+
         // Keep backward compatibility - save plain JSON but with warning
         if (fs.existsSync(TOKENS_FILE)) {
             fs.unlinkSync(TOKENS_FILE); // Remove old plain file
@@ -125,24 +125,24 @@ function loadTokens() {
             const encrypted = fs.readFileSync(ENCRYPTED_TOKENS_FILE, 'utf-8');
             const decrypted = decrypt(encrypted);
             const tokensFromFile = JSON.parse(decrypted);
-            
+
             sessionTokens.clear();
             for (const [key, value] of Object.entries(tokensFromFile)) {
                 sessionTokens.set(key, value);
             }
             return;
         }
-        
+
         // Fallback: migrate from old plain JSON file
         if (fs.existsSync(TOKENS_FILE)) {
             console.log('📦 Migrating plain tokens to encrypted format...');
             const tokensFromFile = JSON.parse(fs.readFileSync(TOKENS_FILE, 'utf-8'));
-            
+
             sessionTokens.clear();
             for (const [key, value] of Object.entries(tokensFromFile)) {
                 sessionTokens.set(key, value);
             }
-            
+
             // Save as encrypted and remove old file
             saveTokens();
             fs.unlinkSync(TOKENS_FILE);
@@ -191,7 +191,7 @@ app.use(rateLimit({
 const ADMIN_PASSWORD = process.env.ADMIN_DASHBOARD_PASSWORD;
 
 // Session limits configuration
-const MAX_SESSIONS = parseInt(process.env.MAX_SESSIONS) || 10;
+const MAX_SESSIONS = parseInt(process.env.MAX_SESSIONS) || 25;
 const SESSION_TIMEOUT_HOURS = parseInt(process.env.SESSION_TIMEOUT_HOURS) || 24;
 
 // WebSocket connection handler
@@ -199,9 +199,9 @@ wss.on('connection', (ws, req) => {
     // Try to authenticate the WebSocket connection
     const url = new URL(req.url, `http://${req.headers.host}`);
     const wsToken = url.searchParams.get('token');
-    
+
     let userInfo = null;
-    
+
     if (wsToken && global.wsAuthTokens) {
         const tokenData = global.wsAuthTokens.get(wsToken);
         if (tokenData && tokenData.expires > Date.now()) {
@@ -213,10 +213,10 @@ wss.on('connection', (ws, req) => {
             global.wsAuthTokens.delete(wsToken);
         }
     }
-    
+
     // Store the user info for this WebSocket client
     wsClients.set(ws, userInfo);
-    
+
     // Send initial session data based on user permissions
     if (userInfo) {
         ws.send(JSON.stringify({
@@ -224,7 +224,7 @@ wss.on('connection', (ws, req) => {
             data: getSessionsDetails(userInfo.email, userInfo.role === 'admin')
         }));
     }
-    
+
     ws.on('close', () => {
         // Clean up when client disconnects
         wsClients.delete(ws);
@@ -244,8 +244,8 @@ app.use(session({
     secret: process.env.SESSION_SECRET || 'change_this_secret',
     resave: false,
     saveUninitialized: false,
-    cookie: { 
-        httpOnly: true, 
+    cookie: {
+        httpOnly: true,
         secure: false, // Set secure: true if using HTTPS
         maxAge: 86400000 // 1 day
     }
@@ -271,7 +271,7 @@ app.post('/admin/login', express.json(), async (req, res) => {
     const { email, password } = req.body;
     const ip = req.ip;
     const userAgent = req.headers['user-agent'];
-    
+
     // Legacy support: if only password is provided, try admin password
     if (!email && password === ADMIN_PASSWORD) {
         req.session.adminAuthed = true;
@@ -280,7 +280,7 @@ app.post('/admin/login', express.json(), async (req, res) => {
         await activityLogger.logLogin('admin@localhost', ip, userAgent, true);
         return res.json({ success: true, role: 'admin' });
     }
-    
+
     // New email/password authentication
     if (email && password) {
         const user = await userManager.authenticateUser(email, password);
@@ -290,14 +290,14 @@ app.post('/admin/login', express.json(), async (req, res) => {
             req.session.userRole = user.role;
             req.session.userId = user.id;
             await activityLogger.logLogin(user.email, ip, userAgent, true);
-            return res.json({ 
-                success: true, 
+            return res.json({
+                success: true,
                 role: user.role,
-                email: user.email 
+                email: user.email
             });
         }
     }
-    
+
     await activityLogger.logLogin(email || 'unknown', ip, userAgent, false);
     res.status(401).json({ success: false, message: 'Invalid credentials' });
 });
@@ -384,7 +384,7 @@ app.post('/api/v1/users', requireAdminRole, async (req, res) => {
     const currentUser = getCurrentUser(req);
     const ip = req.ip;
     const userAgent = req.headers['user-agent'];
-    
+
     try {
         const newUser = await userManager.createUser({
             email,
@@ -392,7 +392,7 @@ app.post('/api/v1/users', requireAdminRole, async (req, res) => {
             role,
             createdBy: currentUser.email
         });
-        
+
         await activityLogger.logUserCreate(currentUser.email, email, role, ip, userAgent);
         res.status(201).json(newUser);
     } catch (error) {
@@ -406,7 +406,7 @@ app.put('/api/v1/users/:email', requireAdminRole, async (req, res) => {
     const currentUser = getCurrentUser(req);
     const ip = req.ip;
     const userAgent = req.headers['user-agent'];
-    
+
     try {
         const updatedUser = await userManager.updateUser(email, updates);
         await activityLogger.logUserUpdate(currentUser.email, email, updates, ip, userAgent);
@@ -421,7 +421,7 @@ app.delete('/api/v1/users/:email', requireAdminRole, async (req, res) => {
     const currentUser = getCurrentUser(req);
     const ip = req.ip;
     const userAgent = req.headers['user-agent'];
-    
+
     try {
         await userManager.deleteUser(email);
         await activityLogger.logUserDelete(currentUser.email, email, ip, userAgent);
@@ -436,7 +436,7 @@ app.get('/api/v1/me', (req, res) => {
     if (!req.session || !req.session.adminAuthed) {
         return res.status(401).json({ error: 'Authentication required' });
     }
-    
+
     const currentUser = getCurrentUser(req);
     const user = userManager.getUser(currentUser.email);
     res.json(user);
@@ -447,25 +447,25 @@ app.get('/api/v1/ws-auth', requireAdminAuth, (req, res) => {
     const currentUser = getCurrentUser(req);
     // Create a temporary token for WebSocket authentication
     const wsToken = crypto.randomBytes(32).toString('hex');
-    
+
     // Store the token temporarily (expires in 30 seconds)
     const tokenData = {
         email: currentUser.email,
         role: currentUser.role,
         expires: Date.now() + 30000 // 30 seconds
     };
-    
+
     // Store in a temporary map (you might want to use Redis in production)
     if (!global.wsAuthTokens) {
         global.wsAuthTokens = new Map();
     }
     global.wsAuthTokens.set(wsToken, tokenData);
-    
+
     // Clean up expired tokens
     setTimeout(() => {
         global.wsAuthTokens.delete(wsToken);
     }, 30000);
-    
+
     res.json({ wsToken });
 });
 
@@ -473,7 +473,7 @@ app.get('/api/v1/ws-auth', requireAdminAuth, (req, res) => {
 app.get('/api/v1/activities', requireAdminAuth, async (req, res) => {
     const currentUser = getCurrentUser(req);
     const { limit = 100, startDate, endDate } = req.query;
-    
+
     if (currentUser.role === 'admin') {
         // Admin can see all activities
         const activities = await activityLogger.getActivities({
@@ -509,7 +509,7 @@ app.get('/admin/test-logs', requireAdminAuth, (req, res) => {
     } catch (error) {
         console.error('Test endpoint error:', error);
     }
-    res.json({ 
+    res.json({
         logFileExists: fs.existsSync(SYSTEM_LOG_FILE),
         logCount: logData.length,
         logs: logData
@@ -519,26 +519,26 @@ app.get('/admin/test-logs', requireAdminAuth, (req, res) => {
 // Update logs endpoint
 app.post('/admin/update-logs', requireAdminAuth, express.json(), (req, res) => {
     const { logs } = req.body;
-    
+
     if (!Array.isArray(logs)) {
         return res.status(400).json({ error: 'Invalid logs data' });
     }
-    
+
     try {
         // Clear the in-memory log
         systemLog.length = 0;
-        
+
         // Update in-memory log with new data
         logs.forEach(log => {
             if (log.details && log.details.event === 'messages-sent') {
                 systemLog.push(log);
             }
         });
-        
+
         // Rewrite the system.log file
         const logLines = logs.map(log => JSON.stringify(log)).join('\n');
         fs.writeFileSync(SYSTEM_LOG_FILE, logLines + '\n');
-        
+
         log('System log updated', 'SYSTEM', { event: 'log-updated', count: logs.length });
         res.json({ success: true, message: 'Logs updated successfully' });
     } catch (error) {
@@ -568,7 +568,7 @@ if (v1ApiRouter.campaignSender) {
             }
         });
     });
-    
+
     v1ApiRouter.campaignSender.on('status', (data) => {
         // Broadcast campaign status updates
         wss.clients.forEach(client => {
@@ -596,11 +596,11 @@ function broadcast(data) {
     wss.clients.forEach(client => {
         if (client.readyState === client.OPEN) {
             const userInfo = wsClients.get(client);
-            
+
             // If it's a session update, filter based on user permissions
             if (data.type === 'session-update') {
                 let filteredData = { ...data };
-                
+
                 if (userInfo && userInfo.email) {
                     // Send filtered sessions based on user permissions
                     filteredData.data = getSessionsDetails(userInfo.email, userInfo.role === 'admin');
@@ -608,7 +608,7 @@ function broadcast(data) {
                     // Unauthenticated connections get no session data
                     filteredData.data = [];
                 }
-                
+
                 client.send(JSON.stringify(filteredData));
             } else {
                 // For other message types (logs), send as-is
@@ -731,7 +731,7 @@ async function connectToWhatsApp(sessionId) {
     if (!fs.existsSync(sessionDir)) {
         fs.mkdirSync(sessionDir, { recursive: true });
     }
-    
+
     const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
     const { version, isLatest } = await fetchLatestBaileysVersion();
     log(`Using WA version: ${version.join('.')}, isLatest: ${isLatest}`, sessionId);
@@ -761,14 +761,14 @@ async function connectToWhatsApp(sessionId) {
         fireInitQueries: false,
         emitOwnEvents: false
     });
-    
+
     sock.ev.on('creds.update', saveCreds);
 
     sock.ev.on('messages.upsert', async (m) => {
         const msg = m.messages[0];
         if (!msg.key.fromMe) {
             log(`Received new message from ${msg.key.remoteJid}`, sessionId);
-            
+
             const messageData = {
                 event: 'new-message',
                 sessionId,
@@ -797,7 +797,7 @@ async function connectToWhatsApp(sessionId) {
 
             // Allow reconnection on a 515 error, which is a "stream error" often seen after pairing.
             const shouldReconnect = statusCode !== 401 && statusCode !== 403;
-            
+
             log(`Connection closed. Reason: ${reason}, statusCode: ${statusCode}. Reconnecting: ${shouldReconnect}`, sessionId);
             updateSessionState(sessionId, 'DISCONNECTED', 'Connection closed.', '', reason);
 
@@ -860,29 +860,29 @@ async function createSession(sessionId, createdBy = null) {
     if (sessions.has(sessionId)) {
         throw new Error('Session already exists');
     }
-    
+
     // Check session limit
     if (sessions.size >= MAX_SESSIONS) {
         throw new Error(`Maximum session limit (${MAX_SESSIONS}) reached. Please delete unused sessions.`);
     }
-    
+
     const token = randomUUID();
     sessionTokens.set(sessionId, token);
     saveTokens();
-    
+
     // Set a placeholder before async connection with owner info
-    sessions.set(sessionId, { 
-        sessionId: sessionId, 
-        status: 'CREATING', 
+    sessions.set(sessionId, {
+        sessionId: sessionId,
+        status: 'CREATING',
         detail: 'Session is being created.',
         owner: createdBy // Track who created this session
     });
-    
+
     // Track session ownership in user manager
     if (createdBy) {
         await userManager.addSessionToUser(createdBy, sessionId);
     }
-    
+
     // Auto-cleanup inactive sessions after timeout
     // Fix for timeout overflow on 32-bit systems - cap at 24 hours max
     const timeoutMs = Math.min(SESSION_TIMEOUT_HOURS * 60 * 60 * 1000, 24 * 60 * 60 * 1000);
@@ -893,7 +893,7 @@ async function createSession(sessionId, createdBy = null) {
             log(`Auto-deleted inactive session after ${SESSION_TIMEOUT_HOURS} hours: ${sessionId}`, 'SYSTEM');
         }
     }, timeoutMs);
-    
+
     connectToWhatsApp(sessionId);
     return { status: 'success', message: `Session ${sessionId} created.`, token };
 }
@@ -919,12 +919,12 @@ async function deleteSession(sessionId) {
             log(`Error during logout for session ${sessionId}: ${err.message}`, sessionId);
         }
     }
-    
+
     // Remove session ownership
     if (session && session.owner) {
         await userManager.removeSessionFromUser(session.owner, sessionId);
     }
-    
+
     sessions.delete(sessionId);
     sessionTokens.delete(sessionId);
     saveTokens();
@@ -973,7 +973,7 @@ server.listen(PORT, () => {
     log('Admin dashboard available at http://localhost:3000/admin/dashboard.html');
     loadTokens(); // Load tokens at startup
     initializeExistingSessions();
-    
+
     // Start campaign scheduler
     startCampaignScheduler();
 });
@@ -981,7 +981,7 @@ server.listen(PORT, () => {
 // Campaign scheduler to automatically start campaigns at their scheduled time
 function startCampaignScheduler() {
     console.log('📅 Campaign scheduler started - checking every minute for scheduled campaigns');
-    
+
     setInterval(async () => {
         await checkAndStartScheduledCampaigns();
     }, 60000); // Check every minute (60,000 ms)

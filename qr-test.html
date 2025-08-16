@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Code Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .qr-code {
+            text-align: center;
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: #f9f9f9;
+        }
+        .session-info {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .status {
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-weight: bold;
+        }
+        .status.connected { background: #d4edda; color: #155724; }
+        .status.generating { background: #fff3cd; color: #856404; }
+        .status.disconnected { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <h1>WhatsApp QR Code Test</h1>
+
+    <div class="container">
+        <h2>Session Information</h2>
+        <div id="session-info"></div>
+    </div>
+
+    <div class="container">
+        <h2>QR Code Display</h2>
+        <div id="qr-container" style="display: none;">
+            <div class="qr-code">
+                <h3>Scan this QR code with WhatsApp</h3>
+                <div id="qr-code-element"></div>
+                <p><small>QR Code will appear here when generated</small></p>
+            </div>
+        </div>
+        <button onclick="showQRCode()">Show QR Code</button>
+        <button onclick="hideQRCode()">Hide QR Code</button>
+    </div>
+
+    <div class="container">
+        <h2>Test QR Code Generation</h2>
+        <p>This demonstrates how the QR code library works:</p>
+        <div class="qr-code">
+            <h4>Test QR Code</h4>
+            <div id="test-qr"></div>
+            <p><small>This is a test QR code for demonstration</small></p>
+        </div>
+    </div>
+
+    <script>
+        // Sample session data (from your server)
+        const sampleSessions = [
+            {
+                sessionId: "10",
+                status: "GENERATING_QR",
+                detail: "QR code available.",
+                qr: "2@hBX0/zmXjJ6/JE0cl9GooDEorTygbJmPvPA721Jihy+Fx6SC6B6qb9oXwSCs8yYQ+Ie1Mb77nEdlyCCnDKzZ9EUqyWjeqBc2Qp8=,SNGin8m+RIU4SWB+LILikegp18MgyHa1Bg4h4L5Bw0U=,+bKPYtv7OrtjRF8SIoVnXiEXPc1KS+3KIUpFsCXvMCE=,T55kQ37vq4fF0OD9GoomnAky6fx+fSik0KsK18p0/2Y=",
+                token: "8078731d-ed1f-494c-a445-8cc7e4f58e3b",
+                owner: "system"
+            },
+            {
+                sessionId: "11",
+                status: "GENERATING_QR",
+                detail: "QR code available.",
+                qr: "2@8sFUK1nmIl0ItzHYWno5lCcqtwNo0Bt9/Q+x37nh82I9KVxtDsABWQ0dVEvfvQwinMLvDXHDzu4m6HKZzPtl/XyaNnux1vtqriQ=,wKJ8tG1w7TqBQJMDyMUs9HBbo4VgxYCBQiBVDsQZumw=,x8+EG/+XzKxJAWL19NuXODKEQMHZOsbM5vqYhcTjS30=,+SL1NKEUb6To4zhO7hF4Wcg4iTAiSpi0pV6cTP8t+AQ=",
+                token: "125db0ef-bc9c-4e23-8ff7-2205382ad9e5",
+                owner: "system"
+            }
+        ];
+
+        // Display session information
+        function displaySessionInfo() {
+            const container = document.getElementById('session-info');
+            container.innerHTML = '';
+
+            sampleSessions.forEach(session => {
+                const sessionDiv = document.createElement('div');
+                sessionDiv.className = 'session-info';
+
+                const statusClass = session.status === 'CONNECTED' ? 'connected' :
+                                  session.status === 'GENERATING_QR' ? 'generating' : 'disconnected';
+
+                sessionDiv.innerHTML = `
+                    <h3>Session: ${session.sessionId}</h3>
+                    <p><strong>Status:</strong> <span class="status ${statusClass}">${session.status}</span></p>
+                    <p><strong>Detail:</strong> ${session.detail}</p>
+                    <p><strong>Owner:</strong> ${session.owner}</p>
+                    <p><strong>Token:</strong> <code>${session.token}</code></p>
+                    <p><strong>QR Data:</strong> <code>${session.qr.substring(0, 50)}...</code></p>
+                    <button onclick="generateQRForSession('${session.sessionId}')">Generate QR for Session ${session.sessionId}</button>
+                `;
+
+                container.appendChild(sessionDiv);
+            });
+        }
+
+        // Generate QR code for a specific session
+        function generateQRForSession(sessionId) {
+            const session = sampleSessions.find(s => s.sessionId === sessionId);
+            if (!session || !session.qr) {
+                alert('No QR data available for this session');
+                return;
+            }
+
+            const qrContainer = document.getElementById('qr-container');
+            const qrElement = document.getElementById('qr-code-element');
+
+            qrContainer.style.display = 'block';
+            qrElement.innerHTML = '';
+
+            try {
+                new QRCode(qrElement, {
+                    text: session.qr,
+                    width: 256,
+                    height: 256,
+                    colorDark: "#000000",
+                    colorLight: "#ffffff",
+                    correctLevel: QRCode.CorrectLevel.H
+                });
+            } catch (error) {
+                qrElement.innerHTML = `<p style="color: red;">Error generating QR code: ${error.message}</p>`;
+            }
+        }
+
+        // Show QR code container
+        function showQRCode() {
+            document.getElementById('qr-container').style.display = 'block';
+        }
+
+        // Hide QR code container
+        function hideQRCode() {
+            document.getElementById('qr-container').style.display = 'none';
+        }
+
+        // Generate test QR code
+        function generateTestQR() {
+            const testQR = document.getElementById('test-qr');
+            testQR.innerHTML = '';
+
+            new QRCode(testQR, {
+                text: "https://example.com/whatsapp-connection-test",
+                width: 200,
+                height: 200,
+                colorDark: "#000000",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.M
+            });
+        }
+
+        // Initialize page
+        window.onload = function() {
+            displaySessionInfo();
+            generateTestQR();
+        };
+    </script>
+</body>
+</html>
