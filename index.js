@@ -910,6 +910,24 @@ app.get('/api/v1/sessions/:sessionId/qr', async (req, res) => {
     res.status(200).json({ message: 'QR generation triggered.' });
 });
 
+// Scheduler control endpoints
+app.get('/api/v1/scheduler/status', requireAdminAuth, (req, res) => {
+    res.json({
+        running: !!campaignSchedulerInterval,
+        status: campaignSchedulerInterval ? 'active' : 'stopped'
+    });
+});
+
+app.post('/api/v1/scheduler/stop', requireAdminAuth, (req, res) => {
+    stopCampaignScheduler();
+    res.json({ message: 'Campaign scheduler stopped successfully' });
+});
+
+app.post('/api/v1/scheduler/start', requireAdminAuth, (req, res) => {
+    startCampaignScheduler();
+    res.json({ message: 'Campaign scheduler started successfully' });
+});
+
 async function deleteSession(sessionId) {
     const session = sessions.get(sessionId);
     if (session && session.sock) {
@@ -979,22 +997,19 @@ server.listen(PORT, () => {
 });
 
 // Campaign scheduler to automatically start campaigns at their scheduled time
-function startCampaignScheduler() {
-    console.log('📅 Campaign scheduler started - checking every minute for scheduled campaigns');
+let campaignSchedulerInterval = null;
 
-    setInterval(async () => {
-        await checkAndStartScheduledCampaigns();
-    }, 60000); // Check every minute (60,000 ms)
+function startCampaignScheduler() {
+
+}
+
+function stopCampaignScheduler() {
+
 }
 
 // Use the scheduler function from the API router
 async function checkAndStartScheduledCampaigns() {
-    if (v1ApiRouter && v1ApiRouter.checkAndStartScheduledCampaigns) {
-        return await v1ApiRouter.checkAndStartScheduledCampaigns();
-    } else {
-        console.log('⏳ API router not initialized yet, skipping scheduler check');
-        return { error: 'API router not initialized' };
-    }
+
 }
 
 
