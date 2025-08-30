@@ -1025,7 +1025,7 @@
             <div class="code-block json">
               <span class="code-lang">JSON</span>
               { "name": "Product Launch Campaign", "sessionId": "mySession",
-              "scheduledAt": "2024-12-20T10:00:00.000Z", // Optional "message":
+              // Optional "message":
               { "type": "text", // "text", "image", "document" "content": "Hello
               {{Name}}, check out our new product at {{Company}}!" },
               "recipients": [ { "number": "6281234567890", "name": "John Doe",
@@ -1062,8 +1062,7 @@
               <span class="code-lang">JSON</span>
               [ { "id": "campaign_1234567890_abc123", "name": "Product Launch
               Campaign", "status": "completed", "createdAt":
-              "2024-12-20T09:00:00.000Z", "scheduledAt":
-              "2024-12-20T10:00:00.000Z", "recipientCount": 100, "statistics": {
+              "2024-12-20T09:00:00.000Z", "recipientCount": 100, "statistics": {
               "total": 100, "sent": 95, "failed": 5, "pending": 0 } } ]
             </div>
 
@@ -1104,8 +1103,7 @@
 
             <h4>Start Campaign</h4>
             <p>
-              Manually starts a campaign immediately, regardless of its
-              scheduled time.
+              Manually starts a campaign immediately.
             </p>
 
             <h5>cURL Example:</h5>

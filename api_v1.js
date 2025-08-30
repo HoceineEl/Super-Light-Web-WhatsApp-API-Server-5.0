@@ -274,8 +274,6 @@ function initializeApi(
     res.json(campaigns);
   });
 
-  // Function to check and start campaigns (shared with scheduler and API endpoints)
-  async function checkAndStartScheduledCampaigns() {}
 
   router.get("/campaigns/csv-template", checkCampaignAccess, (req, res) => {
     const csvContent = `WhatsApp Number,Name,Job Title,Company Name
@@ -293,30 +291,6 @@ function initializeApi(
     res.send(csvContent);
   });
 
-  // Manual trigger endpoint for checking scheduled campaigns (MUST be before /:id route)
-  router.get(
-    "/campaigns/check-scheduled",
-    checkCampaignAccess,
-    async (req, res) => {
-      console.log(
-        "🔍 Manual scheduler check triggered by:",
-        req.currentUser.email
-      );
-      try {
-        const result = await checkAndStartScheduledCampaigns();
-        res.json({
-          status: "success",
-          message: "Scheduler check completed",
-          ...result,
-        });
-      } catch (error) {
-        res.status(500).json({
-          status: "error",
-          message: error.message,
-        });
-      }
-    }
-  );
 
   // Endpoint to get campaigns that should have been started but are still in ready status (MUST be before /:id route)
   router.get("/campaigns/overdue", checkCampaignAccess, (req, res) => {
@@ -589,8 +563,6 @@ function initializeApi(
     }
   );
 
-  // Export the function for use by the main scheduler
-  router.checkAndStartScheduledCampaigns = checkAndStartScheduledCampaigns;
 
   // Recipient List Management Endpoints (Session-based auth, not token-based)
 

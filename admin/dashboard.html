@@ -249,41 +249,6 @@
     </div>
         </section>
 
-        <section id="scheduler-control" class="mb-5">
-            <div class="card shadow-sm">
-                <div class="card-header d-flex justify-content-between align-items-center bg-light">
-                    <h5 class="mb-0">Campaign Scheduler Control</h5>
-                    <div class="d-flex align-items-center">
-                        <span class="badge bg-secondary me-2" id="scheduler-status">Checking...</span>
-                        <button id="refreshSchedulerBtn" class="btn btn-sm btn-outline-secondary me-2">
-                            <i class="bi bi-arrow-clockwise"></i> Refresh
-                        </button>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="d-grid gap-2">
-                                <button id="startSchedulerBtn" class="btn btn-success">
-                                    <i class="bi bi-play-fill"></i> Start Scheduler
-                                </button>
-                                <button id="stopSchedulerBtn" class="btn btn-danger">
-                                    <i class="bi bi-stop-fill"></i> Stop Scheduler
-                                </button>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="alert alert-info">
-                                <i class="bi bi-info-circle"></i>
-                                <strong>Scheduler Status:</strong> <span id="scheduler-status-text">Checking...</span>
-                                <br>
-                                <small>The campaign scheduler automatically starts campaigns at their scheduled times. You can stop it to prevent automatic campaign execution.</small>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
 
         <section id="api-control" class="mb-5">
             <div class="card shadow-sm">
@@ -2038,7 +2003,6 @@ function copyCurl(id, btn) {
             initializeWebSocket();
             loadSessions();
             renderSystemLogHistory(); // Render logs on page load
-            checkSchedulerStatus(); // Check initial scheduler status
         });
 
         document.getElementById('logout-btn').addEventListener('click', async function() {
@@ -2062,78 +2026,7 @@ function copyCurl(id, btn) {
   }
 });
 
-        // Scheduler Control Functions
-        async function checkSchedulerStatus() {
-            try {
-                const response = await fetch('/api/v1/scheduler/status');
-                const data = await response.json();
 
-                const statusBadge = document.getElementById('scheduler-status');
-                const statusText = document.getElementById('scheduler-status-text');
-
-                if (data.running) {
-                    statusBadge.className = 'badge bg-success me-2';
-                    statusBadge.textContent = 'Running';
-                    statusText.textContent = 'Scheduler is active and checking for campaigns every minute';
-                } else {
-                    statusBadge.className = 'badge bg-danger me-2';
-                    statusBadge.textContent = 'Stopped';
-                    statusText.textContent = 'Scheduler is stopped - campaigns will not start automatically';
-                }
-            } catch (error) {
-                console.error('Error checking scheduler status:', error);
-                const statusBadge = document.getElementById('scheduler-status');
-                const statusText = document.getElementById('scheduler-status-text');
-                statusBadge.className = 'badge bg-warning me-2';
-                statusBadge.textContent = 'Error';
-                statusText.textContent = 'Unable to check scheduler status';
-            }
-        }
-
-        async function startScheduler() {
-            try {
-                const response = await fetch('/api/v1/scheduler/start', { method: 'POST' });
-                const data = await response.json();
-
-                if (response.ok) {
-                    showToast('Scheduler started successfully', 'success');
-                    await checkSchedulerStatus();
-                } else {
-                    showToast('Failed to start scheduler: ' + data.error, 'danger');
-                }
-            } catch (error) {
-                console.error('Error starting scheduler:', error);
-                showToast('Error starting scheduler', 'danger');
-            }
-        }
-
-        async function stopScheduler() {
-            try {
-                const response = await fetch('/api/v1/scheduler/stop', { method: 'POST' });
-                const data = await response.json();
-
-                if (response.ok) {
-                    showToast('Scheduler stopped successfully', 'danger');
-                    await checkSchedulerStatus();
-                } else {
-                    showToast('Failed to stop scheduler: ' + data.error, 'danger');
-                }
-            } catch (error) {
-                console.error('Error stopping scheduler:', error);
-                showToast('Error stopping scheduler', 'danger');
-            }
-        }
-
-        // Add event listeners for scheduler control buttons
-        document.addEventListener('DOMContentLoaded', function() {
-            const startBtn = document.getElementById('startSchedulerBtn');
-            const stopBtn = document.getElementById('stopSchedulerBtn');
-            const refreshBtn = document.getElementById('refreshSchedulerBtn');
-
-            if (startBtn) startBtn.addEventListener('click', startScheduler);
-            if (stopBtn) stopBtn.addEventListener('click', stopScheduler);
-            if (refreshBtn) refreshBtn.addEventListener('click', checkSchedulerStatus);
-        });
 
   </script>
 </body>

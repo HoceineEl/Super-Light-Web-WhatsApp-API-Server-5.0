@@ -130,7 +130,6 @@ class CampaignManager {
             name: sanitizeHtml(data.name, { allowedTags: [] }),
             createdBy: data.createdBy,
             createdAt: new Date().toISOString(),
-            scheduledAt: data.scheduledAt || null,
             status: data.status || 'draft',
             sessionId: data.sessionId,
             message: {
@@ -171,7 +170,6 @@ class CampaignManager {
         
         // Update allowed fields
         if (updates.name) campaign.name = sanitizeHtml(updates.name, { allowedTags: [] });
-        if (updates.scheduledAt !== undefined) campaign.scheduledAt = updates.scheduledAt;
         if (updates.sessionId) campaign.sessionId = updates.sessionId;
         if (updates.status) campaign.status = updates.status;
         if (updates.message) {

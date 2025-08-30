@@ -384,7 +384,6 @@ Creates a new WhatsApp campaign with recipients, message templates, and scheduli
 {
     "name": "Marketing Campaign Q1",
     "sessionId": "mySession",
-    "scheduledAt": "2024-02-01T10:00:00Z",
     "message": {
         "type": "text",
         "content": "Hi {{Name}}, check out our new products at {{Company}}!"
@@ -414,7 +413,7 @@ Retrieves all campaigns (filtered by user role).
     {
         "id": "campaign_1234567890",
         "name": "Marketing Campaign Q1",
-        "status": "scheduled",
+        "status": "draft",
         "createdBy": "admin@example.com",
         "createdAt": "2024-01-15T08:00:00Z",
         "recipientCount": 150,

@@ -578,9 +578,6 @@ function prepareReview() {
     document.getElementById('reviewMessageType').textContent = 
         document.getElementById('messageType').options[document.getElementById('messageType').selectedIndex].text;
     
-    const scheduledAt = document.getElementById('scheduledAt').value;
-    document.getElementById('reviewSchedule').textContent = 
-        scheduledAt ? new Date(scheduledAt).toLocaleString() : 'Send immediately';
 }
 
 // Create campaign
@@ -588,7 +585,6 @@ async function createCampaign() {
     const campaignData = {
         name: document.getElementById('campaignName').value,
         sessionId: document.getElementById('sessionId').value,
-        scheduledAt: document.getElementById('scheduledAt').value || null,
         message: {
             type: document.getElementById('messageType').value,
             content: quillEditor.root.innerHTML
@@ -637,12 +633,8 @@ async function createCampaign() {
         }
         
         // Ask if user wants to send now
-        if (!campaignData.scheduledAt) {
-            if (confirm('Campaign ready! Do you want to start sending now?')) {
-                await sendCampaign(response.data.id);
-            } else {
-                backToList();
-            }
+        if (confirm('Campaign ready! Do you want to start sending now?')) {
+            await sendCampaign(response.data.id);
         } else {
             backToList();
         }
@@ -783,7 +775,6 @@ async function saveDraft() {
         const campaignData = {
             name: document.getElementById('campaignName').value || 'Untitled Campaign',
             sessionId: document.getElementById('sessionId').value || '',
-            scheduledAt: document.getElementById('scheduledAt').value || null,
             message: {
                 type: document.getElementById('messageType').value || 'text',
                 content: quillEditor.root.innerHTML || '',
@@ -877,7 +868,6 @@ async function editCampaign(campaignId) {
         // Load data into form fields
         document.getElementById('campaignName').value = campaign.name || '';
         document.getElementById('sessionId').value = campaign.sessionId || '';
-        document.getElementById('scheduledAt').value = campaign.scheduledAt || '';
         document.getElementById('delayBetweenMessages').value = (campaign.settings?.delayBetweenMessages || 3000) / 1000;
         
         // Load recipients
@@ -1055,10 +1045,6 @@ function createCampaignDetailView(campaign) {
                             <dt class="col-sm-3">Message Type:</dt>
                             <dd class="col-sm-9">${campaign.message.type}</dd>
                             
-                            ${campaign.scheduledAt ? `
-                                <dt class="col-sm-3">Scheduled At:</dt>
-                                <dd class="col-sm-9">${new Date(campaign.scheduledAt).toLocaleString()}</dd>
-                            ` : ''}
                             
                             <dt class="col-sm-3">Delay Between Messages:</dt>
                             <dd class="col-sm-9">${(campaign.settings?.delayBetweenMessages || 3000) / 1000} seconds</dd>
@@ -2399,7 +2385,6 @@ async function checkOverdueCampaigns() {
             const result = confirm(`Found ${data.overdueCampaigns} overdue campaign(s):\n\n${campaignsList}\n\nWould you like to manually start them now?`);
             
             if (result) {
-                await manuallyTriggerScheduler();
             }
         } else {
             showAlert('No overdue campaigns found. All scheduled campaigns are running on time!', 'success');
@@ -2412,26 +2397,3 @@ async function checkOverdueCampaigns() {
     }
 }
 
-// Manually trigger the scheduler
-async function manuallyTriggerScheduler() {
-    try {
-        showAlert('Checking for scheduled campaigns...', 'info');
-        
-        const response = await axios.get('/api/v1/campaigns/check-scheduled');
-        const data = response.data;
-        
-        if (data.campaignsToStart > 0) {
-            showAlert(`Started ${data.campaignsToStart} scheduled campaign(s)!`, 'success');
-            // Refresh the campaigns list
-            await loadCampaigns();
-        } else {
-            showAlert('No campaigns needed to be started. All scheduled campaigns are up to date.', 'info');
-        }
-        
-        console.log('Scheduler check result:', data);
-        return data;
-    } catch (error) {
-        console.error('Error triggering scheduler:', error);
-        showAlert('Error triggering scheduler', 'danger');
-    }
-}

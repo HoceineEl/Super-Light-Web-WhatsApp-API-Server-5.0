@@ -421,9 +421,6 @@
                                 <button class="btn btn-outline-warning" onclick="checkOverdueCampaigns()" title="Check for campaigns that should have started automatically">
                                     <i class="bi bi-clock-history"></i> Check Overdue
                                 </button>
-                                <button class="btn btn-outline-info" onclick="manuallyTriggerScheduler()" title="Manually trigger the campaign scheduler">
-                                    <i class="bi bi-play-circle"></i> Run Scheduler
-                                </button>
                             </div>
                             <button class="btn btn-success" onclick="showCreateCampaign()">
                                 <i class="bi bi-plus-circle"></i> New Campaign
@@ -443,7 +440,6 @@
                     <select class="form-select" id="filterStatus">
                         <option value="">All Status</option>
                         <option value="draft">Draft</option>
-                        <option value="scheduled">Scheduled</option>
                         <option value="sending">Sending</option>
                         <option value="paused">Paused</option>
                         <option value="completed">Completed</option>
@@ -506,8 +502,6 @@
                                         <small class="text-muted">Choose which WhatsApp account to send from</small>
                                     </div>
                                     <div class="mb-3">
-                                        <label class="form-label">Schedule Send (Optional)</label>
-                                        <input type="datetime-local" class="form-control" id="scheduledAt">
                                         <small class="text-muted">Leave empty to send immediately</small>
                                     </div>
                                     <div class="mb-3">
@@ -672,8 +666,6 @@
                                             <dt class="col-sm-3">Message Type:</dt>
                                             <dd class="col-sm-9" id="reviewMessageType"></dd>
                                             
-                                            <dt class="col-sm-3">Schedule:</dt>
-                                            <dd class="col-sm-9" id="reviewSchedule"></dd>
                                         </dl>
                                     </div>
                                 </div>

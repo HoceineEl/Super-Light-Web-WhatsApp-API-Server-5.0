@@ -910,23 +910,6 @@ app.get('/api/v1/sessions/:sessionId/qr', async (req, res) => {
     res.status(200).json({ message: 'QR generation triggered.' });
 });
 
-// Scheduler control endpoints
-app.get('/api/v1/scheduler/status', requireAdminAuth, (req, res) => {
-    res.json({
-        running: !!campaignSchedulerInterval,
-        status: campaignSchedulerInterval ? 'active' : 'stopped'
-    });
-});
-
-app.post('/api/v1/scheduler/stop', requireAdminAuth, (req, res) => {
-    stopCampaignScheduler();
-    res.json({ message: 'Campaign scheduler stopped successfully' });
-});
-
-app.post('/api/v1/scheduler/start', requireAdminAuth, (req, res) => {
-    startCampaignScheduler();
-    res.json({ message: 'Campaign scheduler started successfully' });
-});
 
 async function deleteSession(sessionId) {
     const session = sessions.get(sessionId);
@@ -992,24 +975,7 @@ server.listen(PORT, () => {
     loadTokens(); // Load tokens at startup
     initializeExistingSessions();
 
-    // Start campaign scheduler
-    startCampaignScheduler();
 });
 
-// Campaign scheduler to automatically start campaigns at their scheduled time
-let campaignSchedulerInterval = null;
-
-function startCampaignScheduler() {
-
-}
-
-function stopCampaignScheduler() {
-
-}
-
-// Use the scheduler function from the API router
-async function checkAndStartScheduledCampaigns() {
-
-}
 
 
