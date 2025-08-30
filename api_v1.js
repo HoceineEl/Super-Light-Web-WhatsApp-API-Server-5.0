@@ -1390,7 +1390,7 @@ function initializeApi(
     }
   );
 
-  // Create a new group
+  // Create a new group with advanced options
   router.post("/sessions/:sessionId/groups", async (req, res) => {
     log("API request", "SYSTEM", {
       event: "api-request",
@@ -1398,7 +1398,7 @@ function initializeApi(
       endpoint: req.originalUrl,
     });
     const { sessionId } = req.params;
-    const { subject, participants, description } = req.body;
+    const { subject, participants, description, settings = {} } = req.body;
 
     // Validate required fields
     if (!subject || typeof subject !== 'string' || subject.trim().length === 0) {
@@ -1487,6 +1487,41 @@ function initializeApi(
             groupId: groupResult.id,
             error: descError.message,
           });
+        }
+      }
+
+      // Apply group settings if provided
+      if (settings && typeof settings === 'object') {
+        const settingsPromises = [];
+
+        // Set announcement mode (only admins can send messages)
+        if (typeof settings.announcement === 'boolean') {
+          settingsPromises.push(
+            session.sock.groupSettingUpdate(groupResult.id, settings.announcement ? 'announcement' : 'not_announcement')
+              .catch(err => log("Failed to set announcement mode", sessionId, { error: err.message }))
+          );
+        }
+
+        // Set restricted mode (only admins can edit group info)
+        if (typeof settings.restricted === 'boolean') {
+          settingsPromises.push(
+            session.sock.groupSettingUpdate(groupResult.id, settings.restricted ? 'locked' : 'unlocked')
+              .catch(err => log("Failed to set restricted mode", sessionId, { error: err.message }))
+          );
+        }
+
+        // Set disappearing messages
+        if (typeof settings.ephemeralDuration === 'number' && settings.ephemeralDuration >= 0) {
+          settingsPromises.push(
+            session.sock.sendMessage(groupResult.id, {
+              disappearingMessagesInChat: settings.ephemeralDuration === 0 ? false : settings.ephemeralDuration
+            }).catch(err => log("Failed to set disappearing messages", sessionId, { error: err.message }))
+          );
+        }
+
+        // Wait for all settings to be applied
+        if (settingsPromises.length > 0) {
+          await Promise.allSettled(settingsPromises);
         }
       }
 
@@ -2490,6 +2525,376 @@ function initializeApi(
       res.status(500).json({
         status: "error",
         message: `Failed to ${action} join requests. Reason: ${error.message}`,
+      });
+    }
+  });
+
+  // Bulk add participants to group
+  router.post("/sessions/:sessionId/groups/:groupId/participants/bulk", async (req, res) => {
+    log("API request", "SYSTEM", {
+      event: "api-request",
+      method: req.method,
+      endpoint: req.originalUrl,
+    });
+
+    const { sessionId, groupId } = req.params;
+    const { participants } = req.body;
+
+    if (!Array.isArray(participants) || participants.length === 0) {
+      return res.status(400).json({
+        status: "error",
+        message: "Participants array is required and must contain at least one participant",
+      });
+    }
+
+    // Format group ID
+    const formattedGroupId = groupId.includes('@g.us') ? groupId : `${groupId}@g.us`;
+
+    const session = sessions.get(sessionId);
+    if (!session || !session.sock || session.status !== "CONNECTED") {
+      return res.status(404).json({
+        status: "error",
+        message: `Session ${sessionId} not found or not connected.`,
+      });
+    }
+
+    try {
+      const results = [];
+      const validParticipants = [];
+      const errors = [];
+
+      // Validate and format all participants
+      for (const participant of participants) {
+        try {
+          const formattedParticipant = participant.includes('@s.whatsapp.net') 
+            ? participant 
+            : `${participant.replace(/[^\d]/g, '')}@s.whatsapp.net`;
+          
+          if (formattedParticipant.includes('@s.whatsapp.net')) {
+            validParticipants.push(formattedParticipant);
+          } else {
+            errors.push({ participant, error: "Invalid format" });
+          }
+        } catch (error) {
+          errors.push({ participant, error: error.message });
+        }
+      }
+
+      if (validParticipants.length === 0) {
+        return res.status(400).json({
+          status: "error", 
+          message: "No valid participants found",
+          errors
+        });
+      }
+
+      // Add participants in batches to avoid rate limits
+      const BATCH_SIZE = 10;
+      for (let i = 0; i < validParticipants.length; i += BATCH_SIZE) {
+        const batch = validParticipants.slice(i, i + BATCH_SIZE);
+        
+        try {
+          const result = await session.sock.groupParticipantsUpdate(
+            formattedGroupId,
+            batch,
+            "add"
+          );
+          
+          results.push(...batch.map(p => ({ participant: p, status: "added", result })));
+        } catch (error) {
+          batch.forEach(p => {
+            errors.push({ participant: p, error: error.message });
+          });
+        }
+
+        // Add small delay between batches
+        if (i + BATCH_SIZE < validParticipants.length) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
+
+      // Clear cache
+      const cacheKey = `groups_${sessionId}`;
+      groupCache.del(cacheKey);
+
+      res.status(200).json({
+        status: "success",
+        message: `Bulk participant operation completed`,
+        groupId: formattedGroupId,
+        totalProcessed: participants.length,
+        successful: results.length,
+        failed: errors.length,
+        results,
+        errors: errors.length > 0 ? errors : undefined
+      });
+
+    } catch (error) {
+      res.status(500).json({
+        status: "error",
+        message: `Failed to add participants in bulk. Reason: ${error.message}`,
+      });
+    }
+  });
+
+  // Bulk remove participants from group
+  router.delete("/sessions/:sessionId/groups/:groupId/participants/bulk", async (req, res) => {
+    log("API request", "SYSTEM", {
+      event: "api-request",
+      method: req.method,
+      endpoint: req.originalUrl,
+    });
+
+    const { sessionId, groupId } = req.params;
+    const { participants } = req.body;
+
+    if (!Array.isArray(participants) || participants.length === 0) {
+      return res.status(400).json({
+        status: "error",
+        message: "Participants array is required and must contain at least one participant",
+      });
+    }
+
+    // Format group ID
+    const formattedGroupId = groupId.includes('@g.us') ? groupId : `${groupId}@g.us`;
+
+    const session = sessions.get(sessionId);
+    if (!session || !session.sock || session.status !== "CONNECTED") {
+      return res.status(404).json({
+        status: "error",
+        message: `Session ${sessionId} not found or not connected.`,
+      });
+    }
+
+    try {
+      const results = [];
+      const validParticipants = [];
+      const errors = [];
+
+      // Validate and format all participants
+      for (const participant of participants) {
+        try {
+          const formattedParticipant = participant.includes('@s.whatsapp.net') 
+            ? participant 
+            : `${participant.replace(/[^\d]/g, '')}@s.whatsapp.net`;
+          
+          if (formattedParticipant.includes('@s.whatsapp.net')) {
+            validParticipants.push(formattedParticipant);
+          } else {
+            errors.push({ participant, error: "Invalid format" });
+          }
+        } catch (error) {
+          errors.push({ participant, error: error.message });
+        }
+      }
+
+      if (validParticipants.length === 0) {
+        return res.status(400).json({
+          status: "error", 
+          message: "No valid participants found",
+          errors
+        });
+      }
+
+      // Remove participants in batches
+      const BATCH_SIZE = 10;
+      for (let i = 0; i < validParticipants.length; i += BATCH_SIZE) {
+        const batch = validParticipants.slice(i, i + BATCH_SIZE);
+        
+        try {
+          const result = await session.sock.groupParticipantsUpdate(
+            formattedGroupId,
+            batch,
+            "remove"
+          );
+          
+          results.push(...batch.map(p => ({ participant: p, status: "removed", result })));
+        } catch (error) {
+          batch.forEach(p => {
+            errors.push({ participant: p, error: error.message });
+          });
+        }
+
+        // Add small delay between batches
+        if (i + BATCH_SIZE < validParticipants.length) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
+
+      // Clear cache
+      const cacheKey = `groups_${sessionId}`;
+      groupCache.del(cacheKey);
+
+      res.status(200).json({
+        status: "success",
+        message: `Bulk participant removal completed`,
+        groupId: formattedGroupId,
+        totalProcessed: participants.length,
+        successful: results.length,
+        failed: errors.length,
+        results,
+        errors: errors.length > 0 ? errors : undefined
+      });
+
+    } catch (error) {
+      res.status(500).json({
+        status: "error",
+        message: `Failed to remove participants in bulk. Reason: ${error.message}`,
+      });
+    }
+  });
+
+  // Bulk promote participants to admin
+  router.put("/sessions/:sessionId/groups/:groupId/participants/bulk/promote", async (req, res) => {
+    log("API request", "SYSTEM", {
+      event: "api-request",
+      method: req.method,
+      endpoint: req.originalUrl,
+    });
+
+    const { sessionId, groupId } = req.params;
+    const { participants } = req.body;
+
+    if (!Array.isArray(participants) || participants.length === 0) {
+      return res.status(400).json({
+        status: "error",
+        message: "Participants array is required and must contain at least one participant",
+      });
+    }
+
+    const formattedGroupId = groupId.includes('@g.us') ? groupId : `${groupId}@g.us`;
+
+    const session = sessions.get(sessionId);
+    if (!session || !session.sock || session.status !== "CONNECTED") {
+      return res.status(404).json({
+        status: "error",
+        message: `Session ${sessionId} not found or not connected.`,
+      });
+    }
+
+    try {
+      const results = [];
+      const errors = [];
+
+      // Process each participant individually for promote operations
+      for (const participant of participants) {
+        try {
+          const formattedParticipant = participant.includes('@s.whatsapp.net') 
+            ? participant 
+            : `${participant.replace(/[^\d]/g, '')}@s.whatsapp.net`;
+          
+          const result = await session.sock.groupParticipantsUpdate(
+            formattedGroupId,
+            [formattedParticipant],
+            "promote"
+          );
+          
+          results.push({ participant: formattedParticipant, status: "promoted", result });
+          
+          // Small delay between individual promotions
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+        } catch (error) {
+          errors.push({ participant, error: error.message });
+        }
+      }
+
+      // Clear cache
+      const cacheKey = `groups_${sessionId}`;
+      groupCache.del(cacheKey);
+
+      res.status(200).json({
+        status: "success",
+        message: `Bulk participant promotion completed`,
+        groupId: formattedGroupId,
+        totalProcessed: participants.length,
+        successful: results.length,
+        failed: errors.length,
+        results,
+        errors: errors.length > 0 ? errors : undefined
+      });
+
+    } catch (error) {
+      res.status(500).json({
+        status: "error",
+        message: `Failed to promote participants in bulk. Reason: ${error.message}`,
+      });
+    }
+  });
+
+  // Bulk demote participants from admin
+  router.put("/sessions/:sessionId/groups/:groupId/participants/bulk/demote", async (req, res) => {
+    log("API request", "SYSTEM", {
+      event: "api-request",
+      method: req.method,
+      endpoint: req.originalUrl,
+    });
+
+    const { sessionId, groupId } = req.params;
+    const { participants } = req.body;
+
+    if (!Array.isArray(participants) || participants.length === 0) {
+      return res.status(400).json({
+        status: "error",
+        message: "Participants array is required and must contain at least one participant",
+      });
+    }
+
+    const formattedGroupId = groupId.includes('@g.us') ? groupId : `${groupId}@g.us`;
+
+    const session = sessions.get(sessionId);
+    if (!session || !session.sock || session.status !== "CONNECTED") {
+      return res.status(404).json({
+        status: "error",
+        message: `Session ${sessionId} not found or not connected.`,
+      });
+    }
+
+    try {
+      const results = [];
+      const errors = [];
+
+      // Process each participant individually for demote operations
+      for (const participant of participants) {
+        try {
+          const formattedParticipant = participant.includes('@s.whatsapp.net') 
+            ? participant 
+            : `${participant.replace(/[^\d]/g, '')}@s.whatsapp.net`;
+          
+          const result = await session.sock.groupParticipantsUpdate(
+            formattedGroupId,
+            [formattedParticipant],
+            "demote"
+          );
+          
+          results.push({ participant: formattedParticipant, status: "demoted", result });
+          
+          // Small delay between individual demotions
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+        } catch (error) {
+          errors.push({ participant, error: error.message });
+        }
+      }
+
+      // Clear cache
+      const cacheKey = `groups_${sessionId}`;
+      groupCache.del(cacheKey);
+
+      res.status(200).json({
+        status: "success",
+        message: `Bulk participant demotion completed`,
+        groupId: formattedGroupId,
+        totalProcessed: participants.length,
+        successful: results.length,
+        failed: errors.length,
+        results,
+        errors: errors.length > 0 ? errors : undefined
+      });
+
+    } catch (error) {
+      res.status(500).json({
+        status: "error",
+        message: `Failed to demote participants in bulk. Reason: ${error.message}`,
       });
     }
   });
