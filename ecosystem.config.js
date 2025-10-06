@@ -9,7 +9,8 @@ module.exports = {
     node_args: '--max-old-space-size=1024 --optimize-for-size --gc-interval=100',
     env: {
       NODE_ENV: 'production',
-      NODE_OPTIONS: '--max-old-space-size=1024'
+      NODE_OPTIONS: '--max-old-space-size=1024',
+      PORT: 3000
     },
     error_file: './logs/err.log',
     out_file: './logs/out.log',
@@ -20,8 +21,14 @@ module.exports = {
     // Crash recovery
     min_uptime: '10s',
     max_restarts: 10,
+    restart_delay: 4000,
     // Memory optimization
     instance_var: 'INSTANCE_ID',
-    exec_mode: 'fork'
+    exec_mode: 'fork',
+    // Production logging
+    log_type: 'json',
+    merge_logs: true,
+    // Additional production settings
+    exp_backoff_restart_delay: 100
   }]
 }; 

@@ -1,3 +1,11 @@
+// Global crypto polyfill for Baileys compatibility
+if (typeof globalThis.crypto === 'undefined') {
+    globalThis.crypto = require('crypto').webcrypto || require('crypto');
+}
+if (typeof global.crypto === 'undefined') {
+    global.crypto = require('crypto').webcrypto || require('crypto');
+}
+
 // Memory optimization for production environments
 if (process.env.NODE_ENV === 'production') {
     // Limit V8 heap if not already set
@@ -182,13 +190,21 @@ app.use(rateLimit({
     windowMs: 1 * 60 * 1000,
     max: 100,
     message: { status: 'error', message: 'Too many requests, please try again later.' },
-    // Trust proxy headers for proper IP detection
-    trustProxy: true,
     standardHeaders: true,
-    legacyHeaders: false
+    legacyHeaders: false,
+    // Skip rate limiter validation in production behind proxy
+    validate: process.env.NODE_ENV === 'production' ? false : undefined
 }));
 
 const ADMIN_PASSWORD = process.env.ADMIN_DASHBOARD_PASSWORD;
+
+// Warn if admin password is not set
+if (!ADMIN_PASSWORD) {
+    console.warn('⚠️  WARNING: ADMIN_DASHBOARD_PASSWORD not set in environment variables!');
+    console.warn('⚠️  Admin login will not work. Please set ADMIN_DASHBOARD_PASSWORD in your .env file.');
+} else {
+    console.log('✅ Admin password configured');
+}
 
 // Session limits configuration
 const MAX_SESSIONS = parseInt(process.env.MAX_SESSIONS) || 25;
@@ -271,6 +287,13 @@ app.post('/admin/login', express.json(), async (req, res) => {
     const { email, password } = req.body;
     const ip = req.ip;
     const userAgent = req.headers['user-agent'];
+
+    console.log('Login attempt:', {
+        email: email || 'none',
+        hasPassword: !!password,
+        adminPasswordSet: !!ADMIN_PASSWORD,
+        adminPasswordLength: ADMIN_PASSWORD ? ADMIN_PASSWORD.length : 0
+    });
 
     // Legacy support: if only password is provided, try admin password
     if (!email && password === ADMIN_PASSWORD) {
@@ -938,6 +961,7 @@ async function deleteSession(sessionId) {
 }
 
 const PORT = process.env.PORT || 3000;
+const HOST = process.env.NODE_ENV === 'production' ? '0.0.0.0' : 'localhost';
 
 // Handle memory errors gracefully
 process.on('uncaughtException', (error) => {
@@ -969,8 +993,8 @@ async function initializeExistingSessions() {
 }
 
 loadSystemLogFromDisk();
-server.listen(PORT, () => {
-    log(`Server is running on port ${PORT}`);
+server.listen(PORT, HOST, () => {
+    log(`Server is running on ${HOST}:${PORT}`);
     log('Admin dashboard available at http://localhost:3000/admin/dashboard.html');
     loadTokens(); // Load tokens at startup
     initializeExistingSessions();
