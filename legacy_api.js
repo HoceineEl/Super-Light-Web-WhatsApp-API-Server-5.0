@@ -1,25 +1,12 @@
 const express = require('express');
 const multer = require('multer');
-const { jidNormalizedUser } = require('@whiskeysockets/baileys');
+// jidNormalizedUser passed as parameter from index.js (Baileys v7 ESM)
 const rateLimit = require('express-rate-limit');
 const { body, validationResult } = require('validator');
 const { validateToken } = require('./api_v1');
 
 const router = express.Router();
 const upload = multer(); // for form-data parsing
-
-// This is a simplified version of the sendMessage function from api_v1.js
-// In a real app, you'd likely want to share this logic.
-async function sendLegacyMessage(sock, to, message) {
-    try {
-        const jid = jidNormalizedUser(to);
-        const result = await sock.sendMessage(jid, message);
-        return { status: 'success', message: `Message sent to ${to}`, messageId: result.key.id };
-    } catch (error) {
-        console.error(`Failed to send legacy message to ${to}:`, error);
-        return { status: 'error', message: `Failed to send legacy message to ${to}. Reason: ${error.message}` };
-    }
-}
 
 const legacyLimiter = rateLimit({
     windowMs: 1 * 60 * 1000, // 1 minute
@@ -31,7 +18,18 @@ const legacyLimiter = rateLimit({
     legacyHeaders: false
 });
 
-function initializeLegacyApi(sessions, sessionTokens) {
+function initializeLegacyApi(sessions, sessionTokens, jidNormalizedUser) {
+    // This is a simplified version of the sendMessage function from api_v1.js
+    async function sendLegacyMessage(sock, to, message) {
+        try {
+            const jid = jidNormalizedUser(to);
+            const result = await sock.sendMessage(jid, message);
+            return { status: 'success', message: `Message sent to ${to}`, messageId: result.key.id };
+        } catch (error) {
+            console.error(`Failed to send legacy message to ${to}:`, error);
+            return { status: 'error', message: `Failed to send legacy message to ${to}. Reason: ${error.message}` };
+        }
+    }
     // Apply rate limiting and authentication to all legacy endpoints
     router.use(legacyLimiter);
     router.use((req, res, next) => validateToken(req, res, next, sessionTokens));

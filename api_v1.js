@@ -1,5 +1,5 @@
 const express = require("express");
-const { jidNormalizedUser } = require("@whiskeysockets/baileys");
+// jidNormalizedUser passed as parameter from index.js (Baileys v7 ESM)
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
@@ -39,7 +39,8 @@ function initializeApi(
   deleteSession,
   log,
   userManager,
-  activityLogger
+  activityLogger,
+  jidNormalizedUser
 ) {
   // Initialize group metadata cache (5 minutes TTL, no clones for better performance)
   const groupCache = new NodeCache({ stdTTL: 5 * 60, useClones: false });
